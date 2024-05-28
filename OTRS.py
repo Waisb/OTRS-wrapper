@@ -10,7 +10,7 @@ import telebot
 from telebot import types
 from urllib.parse import urlparse
 import configparser
-
+import os
 
 #TODO вытянуть дебаг отдельно, а то че оно спамит епта
 
@@ -27,6 +27,8 @@ class Session:
         self.queue = Config["Queue"]["url"]
         #Инициализация драйвера, настройка и тд. и тп.
         chrome_options = Options()
+        #UPD Added chrome executable (not chromedriver)
+        chrome_options.binary_location = f"{os.getcwd()}/Browser/chrome.exe"
         chrome_options.add_experimental_option("detach", True)
         chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
         service = Service(executable_path=driver_executable_path)
