@@ -240,7 +240,7 @@ def schedulerSessionUpdater(S):
         
 
 def scheduler():
-    schedule.every(3).hour.do(schedulerSessionUpdater, S)
+    schedule.every(3).hours.do(schedulerSessionUpdater, S)
     while True:
         print("[$] Ежедневная проверка сессии")
         schedule.run_pending()
