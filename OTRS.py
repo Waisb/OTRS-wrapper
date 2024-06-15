@@ -11,6 +11,8 @@ from telebot import types
 from urllib.parse import urlparse
 import configparser
 import os
+import schedule
+from threading import Thread
 
 #TODO вытянуть дебаг отдельно, а то че оно спамит епта
 
@@ -179,56 +181,75 @@ class Session:
 ######################
 #MAIN SHIT START HERE#
 ######################
+def main(S, config):
+    #Получение данных из конфига
+    try:
+        config.read("config.ini") 
+    except Exception as Error:
+        print (f"[!!!] Ошибка чтения конфиг файла.\n\n{str(Error)}")
+        exit()
 
-#Получение данных из конфига
-try:
-    config = configparser.ConfigParser() 
-    config.read("config.ini") 
-except Exception as Error:
-    print (f"[!!!] Ошибка чтения конфиг файла.\n\n{str(Error)}")
-    exit()
-
-#Старт telegram бота
-try:
-    print("[$] Инициализация телеграмм сессии.")
-    Telegram = telebot.TeleBot(config["Telegram"]["Bot_key"])
-    Telegram.send_message(config["Telegram"]["Chat_id"],"Бот был запущен!")
-except Exception as Error:
-    print(f"[!!!] Неудачно!\nПричина:{str(Error)}")
-    exit()
+    #Старт telegram бота
+    try:
+        print("[$] Инициализация телеграмм сессии.")
+        Telegram = telebot.TeleBot(config["Telegram"]["Bot_key"])
+        Telegram.send_message(config["Telegram"]["Chat_id"],"Бот был запущен!")
+    except Exception as Error:
+        print(f"[!!!] Неудачно!\nПричина:{str(Error)}")
+        exit()
     
 
-#Инициализация сессии и проверка авторизации
-S = Session(config)
-if S.validate_cookie() == False:
-    S.auth()
+    #Инициализация сессии и проверка авторизации
+    #S = Session(config)
+    if S.validate_cookie() == False:
+        S.auth()
  
-#Просто приколямбус
-print(f"[$] Очередь: {S.queue}")
+    #Просто приколямбус
+    print(f"[$] Очередь: {S.queue}")
   
-#Получение изначальных тикетов и цикл работы
-Tickets = S.get_tickets()
-while True:
-    print("[$] Поиск новых тикетов")
-    Tickets = S.check_quenue_update(Tickets)
-    Tickets_check = S.check_tickets_updates(Tickets)
-    if len(Tickets_check) == 0:
-        print("[$] Нет новых тикетов")
-    else:
-        print("[$] Найдены новые тикеты")
-        Tickets = Tickets_check
-        for Ticket in Tickets:
-            TicketNum = Ticket["Number"]
-            TicketTitle = Ticket["Title"]
-            TicketSender = Ticket["Sender"]
-            TicketClient = Ticket["Client"]
-            TicketLink = Ticket["Link"]
-            keyboard = types.InlineKeyboardMarkup()
-            url_button = types.InlineKeyboardButton(text="Перейти к тикету ->", url=TicketLink)
-            keyboard.add(url_button)
-            Telegram.send_message(config["Telegram"]["Chat_id"],f"Новый тикет!\n\nНомер: {TicketNum}\nТема: {TicketTitle}\n\nОтправитель: {TicketSender}\nКлиент: {TicketClient}",reply_markup=keyboard)
+    #Получение изначальных тикетов и цикл работы
+    Tickets = S.get_tickets()
+    while True:
+        print("[$] Поиск новых тикетов")
+        Tickets = S.check_quenue_update(Tickets)
+        Tickets_check = S.check_tickets_updates(Tickets)
+        if len(Tickets_check) == 0:
+            print("[$] Нет новых тикетов")
+        else:
+            print("[$] Найдены новые тикеты")
+            Tickets = Tickets_check
+            for Ticket in Tickets:
+                TicketNum = Ticket["Number"]
+                TicketTitle = Ticket["Title"]
+                TicketSender = Ticket["Sender"]
+                TicketClient = Ticket["Client"]
+                TicketLink = Ticket["Link"]
+                keyboard = types.InlineKeyboardMarkup()
+                url_button = types.InlineKeyboardButton(text="Перейти к тикету ->", url=TicketLink)
+                keyboard.add(url_button)
+                Telegram.send_message(config["Telegram"]["Chat_id"],f"Новый тикет!\n\nНомер: {TicketNum}\nТема: {TicketTitle}\n\nОтправитель: {TicketSender}\nКлиент: {TicketClient}",reply_markup=keyboard)
         
-    timeout = config["Other"]["Check_timeout"]
-    print(f"[$] Переход в таймаут на {timeout} секунд...")
-    time.sleep(int(timeout))
-    
+        timeout = config["Other"]["Check_timeout"]
+        print(f"[$] Переход в таймаут на {timeout} секунд...")
+        time.sleep(int(timeout))
+   
+def schedulerSessionUpdater(S):
+    if S.validate_cookie() == False:
+        print("[$] При проверке оказалось что сессия устарела. ")
+        S.auth()
+        
+
+def scheduler():
+    schedule.every(3).hour.do(schedulerSessionUpdater, S)
+    while True:
+        print("[$] Ежедневная проверка сессии")
+        schedule.run_pending()
+        time.sleep(30)
+  
+config = configparser.ConfigParser() 
+config.read("config.ini") 
+S = Session(config)        
+
+schedulerThread = Thread(target=scheduler) #нейминг
+schedulerThread.start()
+main(S, config)
