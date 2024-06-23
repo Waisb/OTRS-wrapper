@@ -11,8 +11,7 @@ from telebot import types
 from urllib.parse import urlparse
 import configparser
 import os
-import schedule
-from threading import Thread
+from datetime import datetime, timedelta
 
 #TODO вытянуть дебаг отдельно, а то че оно спамит епта
 
@@ -192,8 +191,8 @@ def main(S, config):
     #Старт telegram бота
     try:
         print("[$] Инициализация телеграмм сессии.")
-        Telegram = telebot.TeleBot(config["Telegram"]["Bot_key"])
-        Telegram.send_message(config["Telegram"]["Chat_id"],"Бот был запущен!")
+        Telegram = telebot.TeleBot(config["Telegram"]["bot_key"])
+        Telegram.send_message(config["Telegram"]["chat_id"],"Бот был запущен!")
     except Exception as Error:
         print(f"[!!!] Неудачно!\nПричина:{str(Error)}")
         exit()
@@ -206,10 +205,20 @@ def main(S, config):
  
     #Просто приколямбус
     print(f"[$] Очередь: {S.queue}")
-  
+    
+    start_time = datetime.now()
+    
     #Получение изначальных тикетов и цикл работы
     Tickets = S.get_tickets()
     while True:
+        #Проверка времени, стоит ли проверить сессию.
+        if abs(datetime.now() - start_time) >= timedelta(hours=int(config["Other"]["check_session_timeout"])):
+            print(f"[$$$] Проверка сессии.")
+            if S.validate_cookie() == False:
+                print(f"[$$$] Сессия обновлена так как устарела.")
+                S.auth()
+            else:
+                print(f"[$$$] Сессия в норме.")
         print("[$] Поиск новых тикетов")
         Tickets = S.check_quenue_update(Tickets)
         Tickets_check = S.check_tickets_updates(Tickets)
@@ -227,29 +236,15 @@ def main(S, config):
                 keyboard = types.InlineKeyboardMarkup()
                 url_button = types.InlineKeyboardButton(text="Перейти к тикету ->", url=TicketLink)
                 keyboard.add(url_button)
-                Telegram.send_message(config["Telegram"]["Chat_id"],f"Новый тикет!\n\nНомер: {TicketNum}\nТема: {TicketTitle}\n\nОтправитель: {TicketSender}\nКлиент: {TicketClient}",reply_markup=keyboard)
+                Telegram.send_message(config["Telegram"]["chat_id"],f"Новый тикет!\n\nНомер: {TicketNum}\nТема: {TicketTitle}\n\nОтправитель: {TicketSender}\nКлиент: {TicketClient}",reply_markup=keyboard)
         
-        timeout = config["Other"]["Check_timeout"]
+        timeout = config["Other"]["check_timeout"]
         print(f"[$] Переход в таймаут на {timeout} секунд...")
+
         time.sleep(int(timeout))
    
-def schedulerSessionUpdater(S):
-    if S.validate_cookie() == False:
-        print("[$] При проверке оказалось что сессия устарела. ")
-        S.auth()
-        
 
-def scheduler():
-    schedule.every(3).hours.do(schedulerSessionUpdater, S)
-    while True:
-        print("[$] Ежедневная проверка сессии")
-        schedule.run_pending()
-        time.sleep(30)
-  
 config = configparser.ConfigParser() 
 config.read("config.ini") 
 S = Session(config)        
-
-schedulerThread = Thread(target=scheduler) #нейминг
-schedulerThread.start()
 main(S, config)
