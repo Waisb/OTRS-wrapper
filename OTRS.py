@@ -6,11 +6,11 @@ from bs4 import BeautifulSoup
 import time
 import telebot
 import json
-import telebot
 from telebot import types
 from urllib.parse import urlparse
 import configparser
 import os
+import sys
 from datetime import datetime, timedelta
 
 #TODO вытянуть дебаг отдельно, а то че оно спамит епта
@@ -192,7 +192,7 @@ def main(S, config):
     try:
         print("[$] Инициализация телеграмм сессии.")
         Telegram = telebot.TeleBot(config["Telegram"]["bot_key"])
-        Telegram.send_message(config["Telegram"]["chat_id"],"Бот был запущен!")
+        Telegram.send_message(config["Telegram"]["chat_id"],"Бот был перезапущен!")
     except Exception as Error:
         print(f"[!!!] Неудачно!\nПричина:{str(Error)}")
         exit()
@@ -244,7 +244,22 @@ def main(S, config):
         time.sleep(int(timeout))
    
 
-config = configparser.ConfigParser() 
-config.read("config.ini") 
-S = Session(config)        
-main(S, config)
+try:
+    config = configparser.ConfigParser() 
+    config.read("config.ini") 
+    S = Session(config)        
+    main(S, config)
+except Exception as error:
+    print (f"[!!!] EXCEPTING ERROR!!!\n\n{str(error)}")
+    Telegram = telebot.TeleBot(config["Telegram"]["bot_key"])
+    if len(str(error)) < 4000:
+        Telegram.send_message(config["Telegram"]["chat_id"],f"Бот был остановлен с ошибкой.\nTrace: {str(error)}")
+    else:
+        Telegram.send_message(config["Telegram"]["chat_id"],f"Бот был остановлен с ошибкой. Traceback слишком большой, сообщение выведено в консоль.")
+    restart_timeout = config["Other"]["restart_timeout"]
+    print(f"[!!!] Переход в таймаут на {restart_timeout} секунд.")
+    Telegram.send_message(config["Telegram"]["chat_id"],f"Будет произведена попытка автоматического перезапуска через {restart_timeout} секунд")
+    time.sleep(int(restart_timeout))
+    print("[!!!] Попытка перезапуска.")
+    python = sys.executable
+    os.execl(python, python, * sys.argv)
